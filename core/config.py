@@ -1,72 +1,53 @@
+"""
+config.py — Central configuration loader
+"""
+
 import os
-import logging
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Load .env
 load_dotenv(Path(__file__).parent.parent / ".env")
 
 
 class Config:
-    # ── Base ─────────────────────────────────────────────
-    BASE_DIR = Path(__file__).resolve().parent.parent
+    # Paths
+    BASE_DIR    = Path(__file__).parent.parent
+    DATA_DIR    = BASE_DIR / os.getenv("DATA_DIR", "data")
+    REC_DIR     = DATA_DIR / "recordings"
+    TRANS_DIR   = DATA_DIR / "transcripts"
+    SUMMARY_DIR = DATA_DIR / "summaries"
 
-    # ── App ──────────────────────────────────────────────
-    APP_NAME: str = os.getenv("APP_NAME", "AI Meeting Notes")
-    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    # Speech Recognition
+    SPEECH_ENGINE   = os.getenv("SPEECH_ENGINE", "whisper")
+    WHISPER_MODEL   = os.getenv("WHISPER_MODEL", "base")
+    ASSEMBLYAI_KEY  = os.getenv("ASSEMBLYAI_API_KEY", "")
 
-    # ── Speech Recognition ───────────────────────────────
-    SPEECH_ENGINE: str = os.getenv("SPEECH_ENGINE", "assemblyai")
-    WHISPER_MODEL: str = os.getenv("WHISPER_MODEL", "tiny")
-    ASSEMBLYAI_API_KEY: str = os.getenv("ASSEMBLYAI_API_KEY", "")
-    LANGUAGE_CODE: str = os.getenv("LANGUAGE_CODE", "hi")
-    TRANSLATE_TO_ENGLISH: bool = os.getenv("TRANSLATE_TO_ENGLISH", "true").lower() == "true"
-    SPEAKER_DIARIZATION: bool = os.getenv("SPEAKER_DIARIZATION", "true").lower() == "true"
+    # NLP
+    SUMMARIZER       = os.getenv("SUMMARIZER", "transformers")
+    SUMMARIZER_MODEL = os.getenv("SUMMARIZER_MODEL", "facebook/bart-large-cnn")
+    OPENAI_KEY       = os.getenv("OPENAI_API_KEY", "")
+    ANTHROPIC_KEY    = os.getenv("ANTHROPIC_API_KEY", "")
 
-    # ── Summarization ────────────────────────────────────
-    SUMMARIZER: str = os.getenv("SUMMARIZER", "claude")
-    ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
-    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    # Audio
+    SAMPLE_RATE         = int(os.getenv("AUDIO_SAMPLE_RATE", 16000))
+    CHUNK_SECONDS       = int(os.getenv("AUDIO_CHUNK_SECONDS", 2))  # 2s chunks = fast like Google Translate
+    DEVICE_INDEX        = int(os.getenv("AUDIO_DEVICE_INDEX", -1))
+    SYSTEM_DEVICE_INDEX = int(os.getenv("AUDIO_SYSTEM_DEVICE_INDEX", -1))
 
-    # ── Audio ────────────────────────────────────────────
-    AUDIO_SAMPLE_RATE: int = int(os.getenv("AUDIO_SAMPLE_RATE", "16000"))
-    AUDIO_CHUNK_SECONDS: int = int(os.getenv("AUDIO_CHUNK_SECONDS", "8"))
-    AUDIO_DEVICE_INDEX: int = int(os.getenv("AUDIO_DEVICE_INDEX", "-1"))
+    # Speaker diarization
+    # Options: "off" | "local" (pyannote, free) | "assemblyai" (needs API key)
+    SPEAKER_DIARIZATION = os.getenv("SPEAKER_DIARIZATION", "local").lower()
+    HUGGINGFACE_TOKEN   = os.getenv("HUGGINGFACE_TOKEN", "")
 
-    # ── Storage ──────────────────────────────────────────
-    DATA_DIR: Path = BASE_DIR / "data"
-    RECORDINGS_DIR: Path = DATA_DIR / "recordings"
-    TRANSCRIPTS_DIR: Path = DATA_DIR / "transcripts"
-    SUMMARIES_DIR: Path = DATA_DIR / "summaries"
-    SAMPLE_RATE = AUDIO_SAMPLE_RATE
-    CHUNK_SECONDS = AUDIO_CHUNK_SECONDS
-    # ✅ Fix for your error
-    TRANS_DIR: Path = TRANSCRIPTS_DIR
+    # App
+    APP_NAME  = os.getenv("APP_NAME", "AI Meeting Notes")
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
-    # ── Google Docs ──────────────────────────────────────
-    GOOGLE_CREDENTIALS_PATH: str = os.getenv("GOOGLE_CREDENTIALS_PATH", "credentials.json")
-
-    def __init__(self):
-        # Create folders
-        for d in [self.RECORDINGS_DIR, self.TRANSCRIPTS_DIR, self.SUMMARIES_DIR]:
+    @classmethod
+    def ensure_dirs(cls):
+        for d in [cls.REC_DIR, cls.TRANS_DIR, cls.SUMMARY_DIR]:
             d.mkdir(parents=True, exist_ok=True)
-
-        self.TRANS_DIR.mkdir(parents=True, exist_ok=True)
-
-        # Logging
-        logging.basicConfig(level=getattr(logging, self.LOG_LEVEL, logging.INFO))
-
-    def validate(self):
-        errors = []
-        if self.SPEECH_ENGINE == "assemblyai" and not self.ASSEMBLYAI_API_KEY:
-            errors.append("ASSEMBLYAI_API_KEY is required")
-        if self.SUMMARIZER == "claude" and not self.ANTHROPIC_API_KEY:
-            errors.append("ANTHROPIC_API_KEY is required")
-
-        if errors:
-            raise ValueError("\n".join(errors))
-
-        return True
 
 
 config = Config()
+config.ensure_dirs()

@@ -1,10 +1,16 @@
 """
-core/summarizer.py — Lightweight summarization via Claude API.
+summarizer.py — NLP summarization and key point extraction.
 
-Replaces the 1.5 GB HuggingFace BART model with a direct Claude API call.
-Also handles Hindi/Bengali → English translation of transcripts.
+Given a transcript, this module produces:
+  • A concise meeting summary
+  • A list of key action items
+  • Important highlighted sentences
+  • (Optional) speaker breakdown
 
-Zero local model download. Works instantly.
+Backends:
+  1. HuggingFace Transformers — local, uses BART / T5 / Pegasus
+  2. OpenAI GPT            — cloud, very high quality
+  3. Claude (Anthropic)    — cloud, great at structured output
 """
 
 import logging
@@ -12,199 +18,313 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional
 
+from core.config import config
+
 logger = logging.getLogger(__name__)
 
 
+# ── Data model ─────────────────────────────────────────────────────────────────
+
 @dataclass
 class MeetingSummary:
-    summary: str
-    action_items: list[str] = field(default_factory=list)
-    key_points: list[str] = field(default_factory=list)
-    highlights: list[str] = field(default_factory=list)   # ✅ ADD THIS
-    language_detected: str = "en"
-    translated: bool = False
+    summary:       str
+    action_items:  list[str]      = field(default_factory=list)
+    key_points:    list[str]      = field(default_factory=list)
+    highlights:    list[str]      = field(default_factory=list)
+    word_count:    int            = 0
+    model_used:    str            = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "summary":      self.summary,
+            "action_items": self.action_items,
+            "key_points":   self.key_points,
+            "highlights":   self.highlights,
+            "word_count":   self.word_count,
+            "model_used":   self.model_used,
+        }
 
 
-# ── Claude summarizer (recommended) ───────────────────────────────────────────
+# ── HuggingFace backend ────────────────────────────────────────────────────────
+
+class TransformersSummarizer:
+    """
+    Local summarization using HuggingFace Transformers.
+
+    Setup:
+        pip install transformers torch sentencepiece
+        # Model downloads automatically on first use (~1.5 GB for BART-large)
+    """
+
+    def __init__(self, model_name: str = None):
+        self.model_name = model_name or config.SUMMARIZER_MODEL
+        self._pipeline  = None
+
+    def _load_pipeline(self):
+        if self._pipeline is None:
+            logger.info(f"Loading summarization model '{self.model_name}'...")
+            from transformers import pipeline
+            self._pipeline = pipeline("summarization", model=self.model_name)
+            logger.info("Summarization model loaded.")
+
+    def summarize(self, transcript: str) -> MeetingSummary:
+        self._load_pipeline()
+
+        if len(transcript.split()) < 30:
+            return MeetingSummary(
+                summary="Transcript too short to summarize.",
+                model_used=self.model_name,
+            )
+
+        # Truncate to 1024 tokens (BART limit)
+        truncated = " ".join(transcript.split()[:900])
+
+        result = self._pipeline(
+            truncated,
+            max_length=200,
+            min_length=40,
+            do_sample=False,
+        )
+        summary_text = result[0]["summary_text"]
+
+        return MeetingSummary(
+            summary=summary_text,
+            action_items=self._extract_action_items(transcript),
+            key_points=self._extract_key_points(transcript),
+            highlights=self._extract_highlights(transcript),
+            word_count=len(transcript.split()),
+            model_used=self.model_name,
+        )
+
+    @staticmethod
+    def _extract_action_items(text: str) -> list[str]:
+        """
+        Heuristic extraction: sentences containing action-item keywords.
+        For better results, use OpenAI/Claude backend.
+        """
+        action_keywords = [
+            "will", "should", "need to", "must", "action:", "todo:",
+            "follow up", "next step", "assign", "responsible", "deadline",
+            "by next", "send", "review", "prepare", "schedule", "confirm",
+        ]
+        sentences = re.split(r'[.!?]\s+', text)
+        items = []
+        for sentence in sentences:
+            s_lower = sentence.lower()
+            if any(kw in s_lower for kw in action_keywords):
+                clean = sentence.strip()
+                if 10 < len(clean) < 200:
+                    items.append(clean)
+        return items[:8]  # Cap at 8
+
+    @staticmethod
+    def _extract_key_points(text: str) -> list[str]:
+        """Extract sentences that mention important named entities or decisions."""
+        decision_keywords = [
+            "decided", "agreed", "approved", "rejected", "proposed",
+            "announced", "confirmed", "discussed", "conclusion",
+        ]
+        sentences = re.split(r'[.!?]\s+', text)
+        points = []
+        for sentence in sentences:
+            s_lower = sentence.lower()
+            if any(kw in s_lower for kw in decision_keywords):
+                clean = sentence.strip()
+                if 10 < len(clean) < 200:
+                    points.append(clean)
+        return points[:6]
+
+    @staticmethod
+    def _extract_highlights(text: str) -> list[str]:
+        """Return longer, substantive sentences as highlights."""
+        sentences = re.split(r'[.!?]\s+', text)
+        # Pick sentences of medium length that aren't questions
+        highlights = [
+            s.strip() for s in sentences
+            if 50 < len(s.strip()) < 180 and "?" not in s
+        ]
+        return highlights[:5]
+
+
+# ── spaCy-based NLP extras ─────────────────────────────────────────────────────
+
+class SpacyExtractor:
+    """
+    Uses spaCy to extract named entities and noun phrases from the transcript.
+    Useful for identifying people, organizations, and topics discussed.
+
+    Setup:
+        pip install spacy
+        python -m spacy download en_core_web_sm
+    """
+
+    def __init__(self):
+        self._nlp = None
+
+    def _load(self):
+        if self._nlp is None:
+            try:
+                import spacy
+                self._nlp = spacy.load("en_core_web_sm")
+            except OSError:
+                logger.warning("spaCy model not found. Run: python -m spacy download en_core_web_sm")
+                self._nlp = None
+
+    def extract_entities(self, text: str) -> dict:
+        self._load()
+        if not self._nlp:
+            return {}
+
+        doc = self._nlp(text)
+        entities = {}
+        for ent in doc.ents:
+            label = ent.label_
+            if label not in entities:
+                entities[label] = []
+            if ent.text not in entities[label]:
+                entities[label].append(ent.text)
+
+        return entities
+
+    def extract_topics(self, text: str) -> list[str]:
+        """Return the most common noun chunks as topic candidates."""
+        self._load()
+        if not self._nlp:
+            return []
+
+        doc = self._nlp(text)
+        from collections import Counter
+        chunks = [chunk.text.lower() for chunk in doc.noun_chunks if len(chunk.text) > 3]
+        most_common = Counter(chunks).most_common(10)
+        return [c[0] for c in most_common]
+
+
+# ── OpenAI backend ─────────────────────────────────────────────────────────────
+
+class OpenAISummarizer:
+    """
+    High-quality summarization using GPT-4.
+    Returns structured output: summary + action items + key points.
+
+    Setup:
+        pip install openai
+        Set OPENAI_API_KEY in your .env
+    """
+
+    PROMPT_TEMPLATE = """You are an expert meeting assistant. Analyze the following meeting transcript and produce structured notes.
+
+TRANSCRIPT:
+{transcript}
+
+Respond ONLY with valid JSON in this exact format:
+{{
+  "summary": "2-3 sentence overview of the meeting",
+  "action_items": ["action 1", "action 2", ...],
+  "key_points": ["key point 1", "key point 2", ...],
+  "highlights": ["important quote or sentence 1", ...]
+}}"""
+
+    def __init__(self, api_key: str = None):
+        self.api_key = api_key or config.OPENAI_KEY
+
+    def summarize(self, transcript: str) -> MeetingSummary:
+        import json
+        try:
+            from openai import OpenAI
+        except ImportError:
+            raise RuntimeError("openai not installed. Run: pip install openai")
+
+        client = OpenAI(api_key=self.api_key)
+        prompt = self.PROMPT_TEMPLATE.format(transcript=transcript[:8000])
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+        )
+
+        try:
+            data = json.loads(response.choices[0].message.content)
+        except json.JSONDecodeError:
+            data = {"summary": response.choices[0].message.content}
+
+        return MeetingSummary(
+            summary=data.get("summary", ""),
+            action_items=data.get("action_items", []),
+            key_points=data.get("key_points", []),
+            highlights=data.get("highlights", []),
+            word_count=len(transcript.split()),
+            model_used="gpt-4o-mini",
+        )
+
+
+# ── Claude backend ─────────────────────────────────────────────────────────────
 
 class ClaudeSummarizer:
     """
-    Summarizes meeting transcripts using the Claude API.
+    High-quality summarization using Anthropic's Claude.
 
-    Features:
-    - Understands Hindi and Bengali transcripts natively
-    - Translates + summarizes in one step (no extra API call)
-    - Extracts action items and key points automatically
-    - ~5x cheaper than running a local GPU model
-    - No download, no setup — just an API key
+    Setup:
+        pip install anthropic
+        Set ANTHROPIC_API_KEY in your .env
     """
 
-    SYSTEM_PROMPT = """You are an expert meeting notes assistant.
-You receive meeting transcripts which may be in Hindi, Bengali, English, or mixed.
-Your job:
-1. Detect the language(s) used
-2. If non-English, translate the full transcript to English first (internally)
-3. Write a clear, concise summary in English (3-5 sentences)
-4. Extract action items (tasks someone must do) — prefix each with "ACTION:"
-5. Extract key discussion points — prefix each with "POINT:"
+    PROMPT_TEMPLATE = """Analyze this meeting transcript and return structured notes as JSON only (no markdown, no explanation).
 
-Format your response EXACTLY like this:
-SUMMARY:
-<your summary here>
+TRANSCRIPT:
+{transcript}
 
-ACTION_ITEMS:
-ACTION: <item 1>
-ACTION: <item 2>
+JSON format:
+{{
+  "summary": "2-3 sentence overview",
+  "action_items": ["action 1", "action 2"],
+  "key_points": ["key point 1", "key point 2"],
+  "highlights": ["important sentence 1"]
+}}"""
 
-KEY_POINTS:
-POINT: <point 1>
-POINT: <point 2>
+    def __init__(self, api_key: str = None):
+        self.api_key = api_key or config.ANTHROPIC_KEY
 
-If there are no action items or key points, write "None" under that section.
-Always respond in English regardless of input language."""
+    def summarize(self, transcript: str) -> MeetingSummary:
+        import json
+        try:
+            import anthropic
+        except ImportError:
+            raise RuntimeError("anthropic not installed. Run: pip install anthropic")
 
-    def __init__(self, api_key: str, model: str = "claude-haiku-4-5-20251001"):
-        # Uses Haiku by default — fastest + cheapest, still very accurate
-        self.api_key = api_key
-        self.model = model
-        logger.info(f"Claude summarizer ready | model={model}")
-
-    def summarize(self, transcript_text: str) -> MeetingSummary:
-        """Summarize a transcript. Handles Hindi/Bengali automatically."""
-        import anthropic
-
-        if not transcript_text.strip():
-            return MeetingSummary(summary="No transcript content to summarize.")
-
-        client = anthropic.Anthropic(api_key=self.api_key)
+        client  = anthropic.Anthropic(api_key=self.api_key)
+        prompt  = self.PROMPT_TEMPLATE.format(transcript=transcript[:8000])
+        message = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1024,
+            messages=[{"role": "user", "content": prompt}],
+        )
 
         try:
-            response = client.messages.create(
-                model=self.model,
-                max_tokens=1024,
-                system=self.SYSTEM_PROMPT,
-                messages=[{
-                    "role": "user",
-                    "content": f"Meeting transcript:\n\n{transcript_text}"
-                }]
-            )
-
-            raw = response.content[0].text
-            return self._parse_response(raw)
-
-        except anthropic.APIError as e:
-            logger.error(f"Claude API error: {e}")
-            return MeetingSummary(summary=f"Summarization failed: {e}")
-
-    def translate_chunk(self, text: str, source_lang: str = "hi") -> str:
-        """Translate a single transcript chunk to English (for live display)."""
-        import anthropic
-
-        lang_names = {"hi": "Hindi", "bn": "Bengali", "ta": "Tamil", "te": "Telugu"}
-        lang_name = lang_names.get(source_lang, source_lang.upper())
-
-        client = anthropic.Anthropic(api_key=self.api_key)
-        response = client.messages.create(
-            model=self.model,
-            max_tokens=256,
-            messages=[{
-                "role": "user",
-                "content": f"Translate this {lang_name} text to English. Return only the translation, nothing else:\n\n{text}"
-            }]
-        )
-        return response.content[0].text.strip()
-
-    def _parse_response(self, raw: str) -> MeetingSummary:
-        summary = ""
-        action_items = []
-        key_points = []
-
-        # Extract SUMMARY section
-        m = re.search(r"SUMMARY:\s*(.+?)(?=ACTION_ITEMS:|KEY_POINTS:|$)", raw, re.DOTALL)
-        if m:
-            summary = m.group(1).strip()
-
-        # Extract ACTION_ITEMS
-        m = re.search(r"ACTION_ITEMS:\s*(.+?)(?=KEY_POINTS:|$)", raw, re.DOTALL)
-        if m:
-            block = m.group(1)
-            action_items = [
-                line.replace("ACTION:", "").strip()
-                for line in block.splitlines()
-                if line.strip().startswith("ACTION:") and "None" not in line
-            ]
-
-        # Extract KEY_POINTS
-        m = re.search(r"KEY_POINTS:\s*(.+?)$", raw, re.DOTALL)
-        if m:
-            block = m.group(1)
-            key_points = [
-                line.replace("POINT:", "").strip()
-                for line in block.splitlines()
-                if line.strip().startswith("POINT:") and "None" not in line
-            ]
+            data = json.loads(message.content[0].text)
+        except json.JSONDecodeError:
+            data = {"summary": message.content[0].text}
 
         return MeetingSummary(
-            summary=summary or raw.strip(),
-            action_items=action_items,
-            key_points=key_points,
-            highlights=key_points[:2]  
-        )
-
-
-# ── Lightweight local fallback (no heavy models) ───────────────────────────────
-
-class SimpleSummarizer:
-    """
-    Minimal extractive summarizer — no API key, no downloads.
-    Uses sentence scoring heuristics. Good enough for short meetings.
-    For best results, use ClaudeSummarizer instead.
-    """
-
-    def summarize(self, transcript_text: str) -> MeetingSummary:
-        sentences = [s.strip() for s in transcript_text.split(".") if len(s.strip()) > 20]
-        # Score sentences by length + position
-        scored = [(i, len(s), s) for i, s in enumerate(sentences)]
-        scored.sort(key=lambda x: -x[1])
-        top = sorted(scored[:3], key=lambda x: x[0])
-        summary = ". ".join(s for _, _, s in top)
-
-        # Basic action item detection
-        action_keywords = ["will", "should", "must", "need to", "action", "follow up", "by tomorrow", "deadline"]
-        action_items = [
-            s for s in sentences
-            if any(kw in s.lower() for kw in action_keywords)
-        ][:5]
-
-        return MeetingSummary(
-            summary=summary or "No summary available.",
-            action_items=action_items,
+            summary=data.get("summary", ""),
+            action_items=data.get("action_items", []),
+            key_points=data.get("key_points", []),
+            highlights=data.get("highlights", []),
+            word_count=len(transcript.split()),
+            model_used="claude-sonnet-4-20250514",
         )
 
 
 # ── Factory ────────────────────────────────────────────────────────────────────
 
-def get_summarizer(config=None):
-    """Return the right summarizer based on config."""
-    if config is None:
-        from core.config import config as cfg
-        config = cfg
-
-    engine = getattr(config, "SUMMARIZER", "claude").lower()
-
-    if engine == "claude":
-        if not config.ANTHROPIC_API_KEY:
-            raise ValueError("Set ANTHROPIC_API_KEY in your .env file")
-        return ClaudeSummarizer(api_key=config.ANTHROPIC_API_KEY)
-
+def get_summarizer(engine: str = None):
+    """Return the configured summarization backend."""
+    engine = engine or config.SUMMARIZER
+    if engine == "transformers":
+        return TransformersSummarizer()
     elif engine == "openai":
-        from core.summarizer_openai import OpenAISummarizer
-        return OpenAISummarizer(api_key=config.OPENAI_API_KEY)
-
-    elif engine in ("transformers", "simple", "none"):
-        logger.warning("Using SimpleSummarizer — no Hindi/Bengali support, limited quality.")
-        logger.warning("Set SUMMARIZER=claude in .env for much better results.")
-        return SimpleSummarizer()
-
+        return OpenAISummarizer()
+    elif engine == "claude":
+        return ClaudeSummarizer()
     else:
-        raise ValueError(f"Unknown SUMMARIZER: {engine}. Use 'claude' or 'simple'.")
+        raise ValueError(f"Unknown summarizer: '{engine}'. Choose: transformers, openai, claude")

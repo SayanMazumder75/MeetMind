@@ -1,146 +1,144 @@
-# 🎙️ AI Meeting Notes App (Lightweight Edition)
+# 🎙️ AI Meeting Notes App
 
-Real-time meeting transcription and summarization — supports **Hindi**, **Bengali**, and English.  
-Uses **AssemblyAI** for speech recognition and **Claude** for summarization.  
-**No GPU needed. No 4 GB model downloads. Works in minutes.**
-
----
-
-## ⚡ What Changed (vs Original)
-
-| | Before | After |
-|---|---|---|
-| Install size | ~4 GB (Whisper + PyTorch + BART) | ~50 MB |
-| Hindi/Bengali accuracy | Poor | Excellent |
-| First run time | 10–30 min (model download) | < 1 min |
-| Requires GPU | Optional but helpful | No |
-| Summarizer | HuggingFace BART (local, 1.5 GB) | Claude API (cloud) |
-| Speech engine | Local Whisper | AssemblyAI (cloud) |
+A real-time AI-powered meeting transcription and summarization tool built in Python.  
+Record your Google Meet (or any meeting), get a live transcript, auto-generated summary, action items, and export to PDF/Word/Google Docs.
 
 ---
 
-## 🗂️ Architecture
+## 📐 Architecture
 
 ```
-Meeting Audio (Mic / VB-Cable / PulseAudio)
+Google Meet Audio (VB-Cable / PulseAudio)
         ↓
-  Audio Capture     (PyAudio — core/audio_capture.py)
+  Audio Capture System  (PyAudio — core/audio_capture.py)
         ↓
-  AssemblyAI API    (Hindi / Bengali / English → English text)
+  Speech Recognition    (Whisper / AssemblyAI / Google — core/transcriber.py)
         ↓
-  Live Transcript   (core/transcriber.py → LiveTranscript)
+  Live Transcript       (core/transcriber.py → LiveTranscript)
         ↓
-  Claude API        (Summarize + extract action items in English)
+  NLP Summarization     (HuggingFace / OpenAI / Claude — core/summarizer.py)
         ↓
-  Dashboard         (Streamlit — dashboard/app.py)
+  Meeting Notes Dashboard  (Streamlit — dashboard/app.py)
 ```
 
 ---
 
-## ⚙️ Setup (5 minutes)
+## 🗂️ Project Structure
 
-### 1. Install dependencies
+```
+ai_meeting_notes/
+├── main.py                    # CLI entry point
+├── requirements.txt
+├── .env.example               # Copy to .env and fill in values
+│
+├── core/
+│   ├── config.py              # Central config (reads .env)
+│   ├── audio_capture.py       # Real-time audio capture (PyAudio)
+│   ├── transcriber.py         # Speech-to-text (Whisper / AssemblyAI / Google)
+│   ├── summarizer.py          # NLP summarization (HuggingFace / OpenAI / Claude)
+│   └── session.py             # Coordinates all components, saves sessions
+│
+├── dashboard/
+│   └── app.py                 # Streamlit web dashboard
+│
+├── exports/
+│   ├── export_pdf.py          # Export to PDF
+│   ├── export_docx.py         # Export to Word .docx
+│   └── export_google_docs.py  # Export to Google Docs
+│
+└── data/
+    ├── recordings/            # Saved WAV files
+    ├── transcripts/           # Session JSON files
+    └── summaries/             # Exported PDF/DOCX files
+```
+
+---
+
+## ⚙️ Setup
+
+### 1. Install Python dependencies
 
 ```bash
+# Create a virtual environment (recommended)
 python -m venv venv
 source venv/bin/activate      # Linux/Mac
 venv\Scripts\activate         # Windows
 
 pip install -r requirements.txt
+
+# Download spaCy English model (for entity/topic extraction)
+python -m spacy download en_core_web_sm
 ```
 
-### 2. Get API keys (both free tiers available)
+### 2. Configure audio routing
 
-| Service | Get key | Free tier |
-|---------|---------|-----------|
-| AssemblyAI | https://www.assemblyai.com | 100 hours/month |
-| Anthropic (Claude) | https://console.anthropic.com | $5 free credit |
+**Windows (Google Meet → VB-Cable):**
+1. Download & install [VB-Cable](https://vb-audio.com/Cable/)
+2. In Windows Sound Settings → Playback → set "CABLE Input" as default
+3. In Google Meet → Settings → Audio → Microphone → select "CABLE Output"
+4. The app will auto-detect VB-Cable
 
-### 3. Configure .env
+**Linux (PulseAudio loopback):**
+```bash
+# Load the loopback module
+pactl load-module module-loopback latency_msec=1
+# Or use pavucontrol to route the Meet tab audio to a monitor source
+```
+
+**Quick test (microphone fallback):**
+If you just want to test, skip the above — the app will capture from your default microphone.
+
+### 3. Create your .env file
 
 ```bash
 cp .env.example .env
+# Edit .env with your settings
 ```
 
-Edit `.env` — minimum config for Hindi meetings:
-
-```env
-SPEECH_ENGINE=assemblyai
-ASSEMBLYAI_API_KEY=your_key_here
-
-LANGUAGE_CODE=hi          # hi=Hindi, bn=Bengali, en=English
-TRANSLATE_TO_ENGLISH=true
-
-SUMMARIZER=claude
-ANTHROPIC_API_KEY=your_key_here
+Minimum config (free, local, no API keys needed):
 ```
-
-### 4. Configure audio routing (to capture Google Meet)
-
-**Windows:**
-1. Install [VB-Cable](https://vb-audio.com/Cable/)
-2. Windows Sound Settings → set "CABLE Input" as default playback
-3. Google Meet → Settings → Audio → Microphone → "CABLE Output"
-
-**Linux:**
-```bash
-pactl load-module module-loopback latency_msec=1
+SPEECH_ENGINE=whisper
+WHISPER_MODEL=base
+SUMMARIZER=transformers
 ```
-
-**Just testing?** Skip audio routing — the app will use your microphone.
 
 ---
 
-## 🚀 Running
+## 🚀 Running the App
 
-### Streamlit Dashboard (recommended)
+### Option A — Streamlit dashboard (recommended)
 
 ```bash
 streamlit run dashboard/app.py
 # Opens at http://localhost:8501
 ```
 
-### Command line
+Or via the CLI:
+```bash
+python main.py dashboard
+```
+
+### Option B — Command line
 
 ```bash
 # Start recording (Ctrl+C to stop)
 python main.py record
 
-# Record for 10 minutes
-python main.py record --duration 600
+# Record for 5 minutes
+python main.py record --duration 300
 
-# List audio devices
+# List available audio devices
 python main.py devices
 
-# Transcribe a saved WAV file
+# Transcribe a WAV file
 python main.py transcribe path/to/audio.wav
 
 # Summarize a saved transcript
-python main.py summarize data/transcripts/session_xxx.json
+python main.py summarize data/transcripts/session_20260317_143000.json
 
-# View all saved sessions
+# List all saved sessions
 python main.py sessions
 ```
-
----
-
-## 🌐 Language Support
-
-AssemblyAI supports 99+ languages. Set `LANGUAGE_CODE` in your `.env`:
-
-| Language | Code |
-|----------|------|
-| Hindi | `hi` |
-| Bengali | `bn` |
-| English | `en` |
-| Tamil | `ta` |
-| Telugu | `te` |
-| Marathi | `mr` |
-| Gujarati | `gu` |
-| Auto-detect | `auto` |
-
-With `TRANSLATE_TO_ENGLISH=true`, transcripts are automatically translated to English  
-before summarization — no extra step needed.
 
 ---
 
@@ -148,45 +146,80 @@ before summarization — no extra step needed.
 
 ### Speech Recognition
 
-| Engine | Cost | Hindi/Bengali | Speaker ID | Size |
-|--------|------|--------------|------------|------|
-| `assemblyai` ✅ | Paid API | Excellent | ✅ Yes | 0 MB |
-| `whisper` (tiny) | Free (local) | Poor | No | ~75 MB |
+| Engine | Cost | Accuracy | Speaker ID | Setup |
+|--------|------|----------|------------|-------|
+| `whisper` | Free (local) | Excellent | No | `pip install openai-whisper` |
+| `assemblyai` | Paid API | Excellent | ✅ Yes | API key in .env |
+| `google` | Free tier | Good | No | `pip install SpeechRecognition` |
+
+**Recommendation:** Start with `whisper` + `base` model. If you need speaker labels, upgrade to `assemblyai`.
 
 ### Summarization
 
-| Engine | Cost | Hindi/Bengali | Size |
-|--------|------|--------------|------|
-| `claude` ✅ | Paid API | Excellent | 0 MB |
-| `simple` | Free | No | 0 MB |
+| Engine | Cost | Quality | Setup |
+|--------|------|---------|-------|
+| `transformers` | Free (local) | Good | `pip install transformers` (downloads ~1.5 GB model) |
+| `openai` | Paid API | Excellent | `OPENAI_API_KEY` in .env |
+| `claude` | Paid API | Excellent | `ANTHROPIC_API_KEY` in .env |
+
+**Recommendation:** Start with `transformers`. For higher quality, use `claude` or `openai`.
 
 ---
 
 ## 📤 Export Options
 
-- **PDF** — formatted meeting notes
-- **Word (.docx)** — editable document
-- **Google Docs** — requires OAuth setup
+From the dashboard sidebar or after a CLI session:
+
+- **PDF** — nicely formatted, includes summary + full transcript
+- **Word (.docx)** — editable document with styled sections
+- **Google Docs** — requires OAuth setup (see exports/export_google_docs.py)
+
+---
+
+## 🔧 Advanced Features (from your notes)
+
+These are marked with ✓ in your notebook as planned enhancements:
+
+| Feature | Status | How to enable |
+|---------|--------|---------------|
+| Speaker identification | Partial — AssemblyAI backend | Set `SPEECH_ENGINE=assemblyai` |
+| Highlight important sentences | ✅ Implemented | Auto in summarizer |
+| Meeting reminders | Planned | Add to session.py |
+| Translate to another language | Planned | Add HuggingFace `translation` pipeline |
+| Ask AI questions about meeting | Planned | Add RAG on transcript using OpenAI / Claude |
 
 ---
 
 ## 🐛 Troubleshooting
 
-**PyAudio install fails on Linux:**
+**`portaudio` not found (PyAudio install fails on Linux):**
 ```bash
 sudo apt-get install portaudio19-dev python3-pyaudio
 pip install pyaudio
 ```
 
-**AssemblyAI error "invalid API key":**
-Check your key at https://www.assemblyai.com/app
-
-**Hindi transcript looks wrong:**
-Make sure `LANGUAGE_CODE=hi` is set in `.env`.  
-If the meeting mixes Hindi and English (Hinglish), set `LANGUAGE_CODE=auto`.
+**Whisper model download is slow:**
+The `base` model is ~140 MB. `medium` is ~1.4 GB. Use `tiny` for fast testing.
 
 **No transcript appearing:**
-```bash
-python main.py devices   # find your device index
-# then set AUDIO_DEVICE_INDEX=<number> in .env
+1. Run `python main.py devices` to check your audio device index
+2. Set `AUDIO_DEVICE_INDEX=<index>` in your .env
+3. Make sure audio is actually being routed through VB-Cable / PulseAudio
+
+**`transformers` model download is slow:**
+BART-large-cnn is ~1.5 GB. For a faster/smaller model, try:
 ```
+SUMMARIZER_MODEL=sshleifer/distilbart-cnn-12-6
+```
+
+---
+
+## 📚 Libraries Used
+
+- [OpenAI Whisper](https://github.com/openai/whisper) — speech recognition
+- [HuggingFace Transformers](https://huggingface.co/facebook/bart-large-cnn) — summarization
+- [spaCy](https://spacy.io/) — entity & topic extraction
+- [Streamlit](https://streamlit.io/) — dashboard
+- [PyAudio](https://people.csail.mit.edu/hubert/pyaudio/) — audio capture
+- [fpdf2](https://pyfpdf.github.io/fpdf2/) — PDF export
+- [python-docx](https://python-docx.readthedocs.io/) — Word export

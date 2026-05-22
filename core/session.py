@@ -26,8 +26,8 @@ from typing import Optional, Callable
 
 from core.config import config
 from core.audio_capture import AudioCapture
-from core.transcriber import LiveTranscript, TranscriptChunk, get_transcriber
-from core.summarizer import MeetingSummary, get_summarizer
+from core.fast_transcriber import LiveTranscript, TranscriptChunk, get_transcriber
+from core.summarizer import MeetingSummary, SpacyExtractor, get_summarizer
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ class MeetingSession:
         self._capture     = None
         self._transcriber = None
         self._summarizer  = None
-        
+        self._spacy       = SpacyExtractor()
 
         self._summarize_thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
@@ -80,8 +80,8 @@ class MeetingSession:
         logger.info(f"Starting meeting session {self.session_id}")
 
         # Load transcriber
-        from core.config import config
-        self._transcriber = get_transcriber(config)
+        self._transcriber = get_transcriber(self.speech_engine)
+
         # Start audio capture
         self._capture = AudioCapture(on_chunk=self._on_audio_chunk)
         self._capture.start(save_recording=True)
@@ -94,22 +94,21 @@ class MeetingSession:
 
         logger.info("Session started. Listening…")
 
-    def stop(self):
-        """Stop recording and finalize session safely"""
-        try:
-            # Stop audio capture
-            if self._capture:
-                self._capture.stop()
+    def stop(self) -> Optional[Path]:
+        """Stop recording and finalize the session."""
+        self._stop_event.set()
 
-            # Stop streaming transcriber (if any)
-            if hasattr(self._transcriber, "stop"):
-                self._transcriber.stop()
+        self.stopped_at = datetime.now()
+        self.recording_path = self._capture.stop() if self._capture else None
 
-            # Run summarization
-            self._run_summarization()
+        # Final summarization
+        self._run_summarization()
 
-        except Exception as e:
-            print(f"Stop error: {e}")
+        # Save to disk
+        self._save_session()
+
+        logger.info(f"Session {self.session_id} stopped.")
+        return self.recording_path
 
     def get_summary(self) -> Optional[MeetingSummary]:
         with self._lock:
@@ -124,10 +123,10 @@ class MeetingSession:
 
     def get_entities(self) -> dict:
         """Return named entities extracted from the transcript."""
-        return {}
+        return self._spacy.extract_entities(self.transcript.get_full_text())
 
     def get_topics(self) -> list[str]:
-        return []
+        return self._spacy.extract_topics(self.transcript.get_full_text())
 
     # ── Internal ───────────────────────────────────────────────────────────────
 
@@ -162,8 +161,7 @@ class MeetingSession:
 
         try:
             if not self._summarizer:
-                from core.config import config
-                self._summarizer = get_summarizer(config)
+                self._summarizer = get_summarizer(self.summarizer_engine)
 
             summary = self._summarizer.summarize(text)
 

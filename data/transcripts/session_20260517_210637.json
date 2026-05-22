@@ -1,0 +1,50 @@
+{
+  "session_id": "20260517_210637",
+  "started_at": "2026-05-17T21:06:37.432964",
+  "stopped_at": "2026-05-17T21:08:12.643749",
+  "duration_sec": 95.210785,
+  "recording": "D:\\ai_meeting_notes _second - Copy\\data\\recordings\\meeting_20260517_210655.wav",
+  "transcript": [
+    {
+      "text": "I'm going to be a good girl I'm going to be a good girl",
+      "timestamp": 1779032237.5316503,
+      "time_label": "21:07:17",
+      "speaker": "Unknown",
+      "confidence": 0.40805622935295105,
+      "duration": 4.992,
+      "detected_lang": "ja"
+    },
+    {
+      "text": "I'm not a fan of you, I'm not a fan of you I'm not a fan of you, I'm not a fan of you",
+      "timestamp": 1779032247.9752572,
+      "time_label": "21:07:27",
+      "speaker": "Unknown",
+      "confidence": 0.4827726185321808,
+      "duration": 10.432,
+      "detected_lang": "ja"
+    },
+    {
+      "text": "I'm going to die",
+      "timestamp": 1779032263.290406,
+      "time_label": "21:07:43",
+      "speaker": "Unknown",
+      "confidence": 0.2598915100097656,
+      "duration": 7.168,
+      "detected_lang": "ml"
+    }
+  ],
+  "summary": null,
+  "entities": {
+    "CARDINAL": [
+      "21:07:17",
+      "21:07:27"
+    ],
+    "WORK_OF_ART": [
+      "21:07:43]"
+    ]
+  },
+  "topics": [
+    "a fan",
+    "a good girl"
+  ]
+}

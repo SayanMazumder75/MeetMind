@@ -42,8 +42,8 @@ class AudioCapture:
         chunk_seconds: int = None,
         on_chunk: Optional[Callable[[np.ndarray, float], None]] = None,
     ):
-        self.sample_rate = sample_rate or config.AUDIO_SAMPLE_RATE
-        self.chunk_seconds = chunk_seconds or config.AUDIO_CHUNK_SECONDS
+        self.sample_rate   = sample_rate or config.SAMPLE_RATE
+        self.chunk_seconds = chunk_seconds or config.CHUNK_SECONDS
         self.on_chunk      = on_chunk
         self._manual_device = device_index if device_index is not None and device_index >= 0 else None
 
@@ -83,7 +83,7 @@ class AudioCapture:
 
         if save_recording:
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-            self._recording_path = config.RECORDINGS_DIR / f"meeting_{ts}.wav"
+            self._recording_path = config.REC_DIR / f"meeting_{ts}.wav"
 
         # Start microphone capture thread
         mic_thread = threading.Thread(
@@ -158,7 +158,7 @@ class AudioCapture:
         system_idx = None
 
         # If a system device index is explicitly set in .env, use it directly
-        if config.AUDIO_DEVICE_INDEX >= 0:
+        if config.SYSTEM_DEVICE_INDEX >= 0:
             system_idx = config.SYSTEM_DEVICE_INDEX
             logger.info(f"Using system audio device from config: index={system_idx}")
         else:

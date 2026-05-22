@@ -1,0 +1,64 @@
+{
+  "session_id": "20260519_212113",
+  "started_at": "2026-05-19T21:21:13.295763",
+  "stopped_at": "2026-05-19T21:23:05.372180",
+  "duration_sec": 112.076417,
+  "recording": "D:\\ai_meeting_notes _second - Copy\\data\\recordings\\meeting_20260519_212123.wav",
+  "transcript": [
+    {
+      "text": "What is your name?",
+      "timestamp": 1779205921.8751585,
+      "time_label": "21:22:01",
+      "speaker": "Unknown",
+      "confidence": 0.8078159689903259,
+      "duration": 5.952,
+      "detected_lang": "hi"
+    },
+    {
+      "text": "Tewan, you will also have to stay with me. Please.",
+      "timestamp": 1779205929.0683208,
+      "time_label": "21:22:09",
+      "speaker": "Unknown",
+      "confidence": 0.9319707155227661,
+      "duration": 7.168,
+      "detected_lang": "hi"
+    },
+    {
+      "text": "I am thinking of you very well. I am also getting my brother. Let's go and do one thing for you. Let's go.",
+      "timestamp": 1779205938.8232038,
+      "time_label": "21:22:18",
+      "speaker": "Unknown",
+      "confidence": 0.9714555740356445,
+      "duration": 9.792,
+      "detected_lang": "hi"
+    },
+    {
+      "text": "I am very happy to have you all here. We are here to have lunch with you all.",
+      "timestamp": 1779205947.0183916,
+      "time_label": "21:22:27",
+      "speaker": "Unknown",
+      "confidence": 0.7469823360443115,
+      "duration": 8.192,
+      "detected_lang": "hi"
+    }
+  ],
+  "summary": null,
+  "entities": {
+    "CARDINAL": [
+      "21:22:09",
+      "21:22:18",
+      "one",
+      "21:22:27"
+    ],
+    "GPE": [
+      "Tewan"
+    ]
+  },
+  "topics": [
+    "what",
+    "your name",
+    "my brother",
+    "one thing",
+    "lunch"
+  ]
+}

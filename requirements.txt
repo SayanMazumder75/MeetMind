@@ -1,43 +1,39 @@
-# AI Meeting Notes — Requirements (Lightweight Cloud Edition)
+# AI Meeting Notes App - Requirements
 # Install with: pip install -r requirements.txt
-#
-# Total install size: ~50 MB (vs ~4 GB in the original version)
-# No GPU, no CUDA, no local model downloads needed.
 
-# ── Audio capture ──────────────────────────────────────────────────────────────
+# Audio capture
 pyaudio>=0.2.13
 sounddevice>=0.4.6
 numpy>=1.24.0
 
-# ── Speech recognition (AssemblyAI cloud) ─────────────────────────────────────
-# Supports Hindi, Bengali, and 99+ languages. No local model needed.
-assemblyai>=0.18.0
+# Speech recognition
+openai-whisper>=20231117
+torch>=2.0.0
 
-# ── Summarization (Claude API) ────────────────────────────────────────────────
-anthropic>=0.25.0
+# NLP & Summarization
+transformers>=4.35.0
+spacy>=3.7.0
+sentencepiece>=0.1.99
 
-# ── Dashboard ─────────────────────────────────────────────────────────────────
+# Dashboard
 streamlit>=1.28.0
 streamlit-autorefresh>=1.0.1
 
-# ── Export ────────────────────────────────────────────────────────────────────
+# Export
 fpdf2>=2.7.6
 python-docx>=1.1.0
 google-auth>=2.23.0
 google-auth-oauthlib>=1.1.0
 google-api-python-client>=2.100.0
 
-# ── Utilities ─────────────────────────────────────────────────────────────────
+# Utilities
 python-dotenv>=1.0.0
 pydantic>=2.4.0
 rich>=13.6.0
 
-# ── Optional: local Whisper fallback (only if you can't use AssemblyAI) ───────
-# Uncomment below — adds ~200 MB and requires torch
-# openai-whisper>=20231117
-# torch>=2.0.0
+# Optional: cloud speech APIs (choose one)
+# assemblyai>=0.18.0        # AssemblyAI API (paid, very accurate)
+# SpeechRecognition>=3.10.0 # Google Speech (free tier)
 
-# ── Optional: heavy local summarizer (NOT recommended — 1.5 GB download) ──────
-# transformers>=4.35.0
-# spacy>=3.7.0
-# sentencepiece>=0.1.99
+# RECOMMENDED: faster-whisper (4x faster, smaller, works on CPU)
+faster-whisper>=1.0.0

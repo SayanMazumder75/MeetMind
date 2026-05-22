@@ -1,5 +1,5 @@
 """
-app.py — Streamlit dashboard for AI Meeting Notes.
+app.py — AI Meeting Notes Dashboard (Premium Redesign)
 
 Run with:
     streamlit run dashboard/app.py
@@ -21,269 +21,770 @@ from core.session import MeetingSession
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ── Page config ────────────────────────────────────────────────────────────────
-
 st.set_page_config(
     page_title=config.APP_NAME,
     page_icon="🎙️",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
-# ── Custom CSS ─────────────────────────────────────────────────────────────────
 
-st.markdown("""
-<style>
-    @keyframes pulse { 0%{opacity:1} 50%{opacity:0.4} 100%{opacity:1} }
-    .recording-dot {
-        display:inline-block; width:12px; height:12px;
-        background:#e53e3e; border-radius:50%;
-        animation:pulse 1.2s ease-in-out infinite; margin-right:8px;
-    }
-    .recording-badge {
-        background:#fff5f5; border:1px solid #fc8181; border-radius:8px;
-        padding:8px 14px; color:#c53030; font-weight:600; font-size:14px;
-        display:inline-flex; align-items:center;
-    }
-    .chunk-card {
-        background:#f8f9fa; border-left:3px solid #4a7fe5;
-        padding:8px 12px; margin-bottom:6px;
-        border-radius:0 6px 6px 0; font-size:14px;
-    }
-    .chunk-timestamp { font-size:11px; color:#888; margin-bottom:2px; }
-    .chunk-speaker   { font-weight:600; color:#4a7fe5; }
-    .chunk-text      { color:#333; line-height:1.5; }
-    .lang-badge {
-        display:inline-block; font-size:10px; padding:1px 6px;
-        border-radius:4px; background:#e9d8fd; color:#553c9a;
-        font-weight:600; margin-left:6px; vertical-align:middle;
-    }
-    .action-item {
-        background:#fffbeb; border-left:3px solid #f6ad55;
-        padding:6px 12px; margin-bottom:4px;
-        border-radius:0; font-size:13px; color:#744210;
-    }
-    .key-point {
-        background:#ebf8ff; border-left:3px solid #63b3ed;
-        padding:6px 12px; margin-bottom:4px;
-        border-radius:0; font-size:13px; color:#2c5282;
-    }
-    .summary-box {
-        background:#f0fff4; border:1px solid #9ae6b4; border-radius:8px;
-        padding:16px; font-size:14px; line-height:1.7; color:#276749;
-    }
-    .stat-card {
-        background:white; border:1px solid #e2e8f0;
-        border-radius:8px; padding:16px; text-align:center;
-    }
-    .stat-value { font-size:28px; font-weight:700; color:#2d3748; }
-    .stat-label { font-size:12px; color:#718096; margin-top:4px; }
-</style>
-""", unsafe_allow_html=True)
-
-
-# ── Session state ──────────────────────────────────────────────────────────────
-
+# ========== Session state ==========
 def init_state():
     defaults = {
-        "meeting_session":  None,
-        "is_recording":     False,
-        "session_id":       None,
+        "meeting_session": None,
+        "is_recording": False,
+        "session_id": None,
         "last_chunk_count": 0,
-        "meeting_title":    f"Meeting {datetime.now().strftime('%d %b %Y')}",
+        "meeting_title": f"Meeting {datetime.now().strftime('%d %b %Y')}",
+        "dark_mode": True,
     }
     for key, val in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = val
 
+
 init_state()
 
 
-# ── Page renderer functions (defined before any calls below) ───────────────────
+# ========== PREMIUM THEME ==========
+def inject_theme():
+    dark = st.session_state.get("dark_mode", True)
 
+    if dark:
+        bg            = "#080c14"
+        bg2           = "#0d1220"
+        surface       = "#111827"
+        surface2      = "#1a2236"
+        border        = "#1e2d45"
+        border2       = "#243352"
+        text          = "#e8eef8"
+        text2         = "#6b7fa3"
+        text3         = "#3d5070"
+        accent        = "#4f8ef7"
+        accent2       = "#3a7ae8"
+        accent_glow   = "rgba(79,142,247,0.18)"
+        accent_glow2  = "rgba(79,142,247,0.08)"
+        green         = "#34d399"
+        green_bg      = "rgba(52,211,153,0.07)"
+        green_bd      = "rgba(52,211,153,0.2)"
+        amber         = "#fbbf24"
+        amber_bg      = "rgba(251,191,36,0.07)"
+        amber_bd      = "rgba(251,191,36,0.22)"
+        blue_bg       = "rgba(79,142,247,0.07)"
+        blue_bd       = "rgba(79,142,247,0.22)"
+        header_bg     = "rgba(8,12,20,0.92)"
+        shadow        = "rgba(0,0,0,0.6)"
+        shadow2       = "rgba(0,0,0,0.3)"
+        rec_color     = "#f87171"
+        rec_bg        = "rgba(248,113,113,0.1)"
+        badge_bg      = "rgba(79,142,247,0.12)"
+        scrollbar_bg  = "#111827"
+        scrollbar_th  = "#1e2d45"
+    else:
+        bg            = "#f0f4ff"
+        bg2           = "#e4eaf8"
+        surface       = "#ffffff"
+        surface2      = "#f7f9ff"
+        border        = "#dde4f5"
+        border2       = "#c8d3ee"
+        text          = "#0f1729"
+        text2         = "#5a6b8c"
+        text3         = "#9aaabf"
+        accent        = "#2563eb"
+        accent2       = "#1d4ed8"
+        accent_glow   = "rgba(37,99,235,0.14)"
+        accent_glow2  = "rgba(37,99,235,0.06)"
+        green         = "#059669"
+        green_bg      = "rgba(5,150,105,0.06)"
+        green_bd      = "rgba(5,150,105,0.2)"
+        amber         = "#d97706"
+        amber_bg      = "rgba(217,119,6,0.06)"
+        amber_bd      = "rgba(217,119,6,0.22)"
+        blue_bg       = "rgba(37,99,235,0.06)"
+        blue_bd       = "rgba(37,99,235,0.2)"
+        header_bg     = "rgba(240,244,255,0.94)"
+        shadow        = "rgba(15,23,41,0.1)"
+        shadow2       = "rgba(15,23,41,0.06)"
+        rec_color     = "#dc2626"
+        rec_bg        = "rgba(220,38,38,0.08)"
+        badge_bg      = "rgba(37,99,235,0.1)"
+        scrollbar_bg  = "#f0f4ff"
+        scrollbar_th  = "#c8d3ee"
+
+    css = f"""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    /* ─── GLOBAL RESET & BASE ─── */
+    *, *::before, *::after {{
+        box-sizing: border-box;
+        font-family: 'Sora', sans-serif !important;
+    }}
+    code, pre, kbd, .stCode {{
+        font-family: 'JetBrains Mono', monospace !important;
+    }}
+
+    /* ─── NUCLEAR BG OVERRIDE ─── */
+    html, body,
+    .stApp,
+    [data-testid="stAppViewContainer"],
+    [data-testid="stHeader"],
+    [data-testid="stMain"],
+    [data-testid="stMainBlockContainer"],
+    [data-testid="block-container"],
+    .main, .appview-container {{
+        background: {bg} !important;
+        background-color: {bg} !important;
+        color: {text} !important;
+    }}
+
+    /* ─── HIDE STREAMLIT CHROME ─── */
+    [data-testid="stHeader"],
+    [data-testid="stToolbar"],
+    footer, #MainMenu,
+    [data-testid="stDecoration"] {{
+        display: none !important;
+    }}
+
+    /* ─── SCROLLBAR ─── */
+    ::-webkit-scrollbar {{ width: 5px; height: 5px; }}
+    ::-webkit-scrollbar-track {{ background: {scrollbar_bg}; }}
+    ::-webkit-scrollbar-thumb {{ background: {scrollbar_th}; border-radius: 10px; }}
+    ::-webkit-scrollbar-thumb:hover {{ background: {border2}; }}
+
+    /* ─── TEXT UNIVERSALS ─── */
+    p, span, div, li, td, th, label,
+    h1, h2, h3, h4, h5, h6,
+    .stMarkdown, .stMarkdown p, .stMarkdown span,
+    .stMarkdown li, .stMarkdown strong,
+    [data-testid="stMarkdownContainer"],
+    [data-testid="stMarkdownContainer"] p,
+    [data-testid="stMarkdownContainer"] li,
+    [data-testid="stMarkdownContainer"] strong,
+    [data-testid="stText"],
+    .stCaption,
+    [data-testid="stCaptionContainer"] p {{
+        color: {text} !important;
+    }}
+    small, .stCaption p, [data-testid="stCaptionContainer"] p {{
+        color: {text2} !important;
+    }}
+
+    h1 {{
+        font-size: 1.6rem !important;
+        font-weight: 700 !important;
+        letter-spacing: -0.03em !important;
+        line-height: 1.2 !important;
+    }}
+    h2 {{
+        font-size: 1.05rem !important;
+        font-weight: 600 !important;
+        letter-spacing: -0.01em !important;
+    }}
+    h3 {{
+        font-size: 0.92rem !important;
+        font-weight: 600 !important;
+    }}
+
+    /* ─── TOP BAR FIX ─── */
+    [data-testid="stMainBlockContainer"],
+    [data-testid="block-container"] {{
+        padding-top: 1rem !important;
+        padding-bottom: 2rem !important;
+        max-width: 1440px !important;
+    }}
+
+    div[data-testid="stHorizontalBlock"]:first-of-type {{
+        position: sticky;
+        top: 0.75rem;
+        z-index: 1000;
+        background: {header_bg};
+        backdrop-filter: blur(24px) saturate(180%);
+        -webkit-backdrop-filter: blur(24px) saturate(180%);
+        border: 1px solid {border};
+        box-shadow: 0 8px 32px {shadow2};
+        border-radius: 16px;
+        padding: 0.75rem;
+        margin-bottom: 1.25rem;
+    }}
+
+    div[data-testid="stHorizontalBlock"]:first-of-type .stButton button {{
+        height: 38px !important;
+        border-radius: 10px !important;
+        font-size: 0.78rem !important;
+        font-weight: 600 !important;
+        white-space: nowrap !important;
+        letter-spacing: 0.01em !important;
+        padding: 0 14px !important;
+    }}
+    div[data-testid="stHorizontalBlock"]:first-of-type .stTextInput input {{
+        height: 38px !important;
+        border-radius: 10px !important;
+        font-size: 0.85rem !important;
+        padding: 0 12px !important;
+    }}
+    div[data-testid="stHorizontalBlock"]:first-of-type [data-baseweb="select"] > div {{
+        min-height: 38px !important;
+        border-radius: 10px !important;
+    }}
+
+    /* ─── STAT CARDS ─── */
+    .stat-card {{
+        background: {surface};
+        border: 1px solid {border};
+        border-radius: 16px;
+        padding: 1.1rem 0.75rem;
+        text-align: center;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+        box-shadow: 0 2px 12px {shadow2};
+        position: relative;
+        overflow: hidden;
+    }}
+    .stat-card::before {{
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(135deg, {accent_glow2} 0%, transparent 60%);
+        pointer-events: none;
+    }}
+    .stat-card:hover {{
+        transform: translateY(-3px);
+        box-shadow: 0 12px 32px {shadow};
+        border-color: {border2};
+    }}
+    .stat-value {{
+        font-size: 1.9rem;
+        font-weight: 800;
+        color: {text} !important;
+        line-height: 1;
+        letter-spacing: -0.04em;
+    }}
+    .stat-label {{
+        font-size: 0.58rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: {text2} !important;
+        margin-top: 6px;
+        font-weight: 600;
+    }}
+    .stat-accent {{
+        width: 28px;
+        height: 2px;
+        background: {accent};
+        margin: 6px auto 0;
+        border-radius: 2px;
+        opacity: 0.6;
+    }}
+
+    /* ─── TRANSCRIPT CARDS ─── */
+    .chunk-card {{
+        background: {surface};
+        border: 1px solid {border};
+        border-left: 2px solid {accent};
+        padding: 0.65rem 1rem 0.65rem 0.9rem;
+        margin-bottom: 0.4rem;
+        border-radius: 0 12px 12px 0;
+        box-shadow: 0 1px 6px {shadow2};
+        transition: box-shadow 0.15s ease, border-left-color 0.15s ease;
+    }}
+    .chunk-card:hover {{
+        box-shadow: 0 4px 16px {shadow};
+        border-left-color: {green};
+    }}
+    .chunk-timestamp {{
+        font-size: 0.62rem;
+        color: {text3} !important;
+        margin-bottom: 4px;
+        font-family: 'JetBrains Mono', monospace !important;
+        letter-spacing: 0.04em;
+    }}
+    .chunk-speaker {{
+        font-weight: 700;
+        color: {accent} !important;
+        font-size: 0.8rem;
+        letter-spacing: 0.01em;
+    }}
+    .chunk-text {{
+        color: {text} !important;
+        line-height: 1.6;
+        font-size: 0.84rem;
+        font-weight: 400;
+    }}
+    mark {{
+        background: {accent_glow};
+        color: {accent} !important;
+        border-radius: 3px;
+        padding: 0 2px;
+    }}
+
+    /* ─── SUMMARY / ACTION / KEYPOINT BOXES ─── */
+    .summary-box {{
+        background: {green_bg};
+        border: 1px solid {green_bd};
+        border-radius: 14px;
+        padding: 1.1rem 1.2rem;
+        color: {green} !important;
+        line-height: 1.7;
+        font-size: 0.875rem;
+        font-weight: 400;
+    }}
+    .action-item {{
+        background: {amber_bg};
+        border: 1px solid {amber_bd};
+        border-left: 2px solid {amber};
+        padding: 0.5rem 0.9rem;
+        margin-bottom: 0.38rem;
+        border-radius: 0 10px 10px 0;
+        font-size: 0.84rem;
+        color: {text} !important;
+        transition: background 0.15s;
+    }}
+    .action-item:hover {{ background: rgba(251,191,36,0.12); }}
+    .key-point {{
+        background: {blue_bg};
+        border: 1px solid {blue_bd};
+        border-left: 2px solid {accent};
+        padding: 0.5rem 0.9rem;
+        margin-bottom: 0.38rem;
+        border-radius: 0 10px 10px 0;
+        font-size: 0.84rem;
+        color: {text} !important;
+        transition: background 0.15s;
+    }}
+    .key-point:hover {{ background: rgba(79,142,247,0.12); }}
+
+    /* ─── RECORDING BADGE ─── */
+    .recording-badge {{
+        background: {rec_bg};
+        border: 1px solid {rec_color}33;
+        border-radius: 40px;
+        padding: 0.22rem 0.9rem;
+        font-weight: 600;
+        color: {rec_color} !important;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 0.78rem;
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+    }}
+    .recording-dot {{
+        width: 7px;
+        height: 7px;
+        background: {rec_color};
+        border-radius: 50%;
+        flex-shrink: 0;
+        animation: rec-pulse 1.2s ease-in-out infinite;
+    }}
+    @keyframes rec-pulse {{
+        0%, 100% {{ opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 {rec_color}44; }}
+        50% {{ opacity: 0.3; transform: scale(0.75); box-shadow: 0 0 0 4px transparent; }}
+    }}
+
+    /* ─── LANG BADGE ─── */
+    .lang-badge {{
+        display: inline-block;
+        background: {badge_bg};
+        color: {accent} !important;
+        border-radius: 4px;
+        padding: 1px 5px;
+        font-size: 0.58rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        margin-left: 6px;
+        font-family: 'JetBrains Mono', monospace !important;
+        vertical-align: middle;
+    }}
+
+    /* ─── INPUTS ─── */
+    [data-testid="stTextInput"] input {{
+        background: {surface} !important;
+        color: {text} !important;
+        border: 1px solid {border} !important;
+        border-radius: 10px !important;
+        font-size: 0.875rem !important;
+        transition: border-color 0.15s, box-shadow 0.15s !important;
+    }}
+    [data-testid="stTextInput"] input:focus {{
+        border-color: {accent} !important;
+        box-shadow: 0 0 0 3px {accent_glow} !important;
+        outline: none !important;
+    }}
+    [data-testid="stTextInput"] input::placeholder {{
+        color: {text3} !important;
+    }}
+
+    /* ─── SELECTBOX ─── */
+    [data-baseweb="select"] > div {{
+        background: {surface} !important;
+        border-color: {border} !important;
+        border-radius: 10px !important;
+        color: {text} !important;
+    }}
+    [data-baseweb="select"] svg {{
+        fill: {text2} !important;
+    }}
+    [data-baseweb="popover"] {{
+        background: {surface2} !important;
+        border: 1px solid {border} !important;
+        border-radius: 12px !important;
+        box-shadow: 0 8px 32px {shadow} !important;
+    }}
+    [data-baseweb="menu"] li {{
+        background: transparent !important;
+        color: {text} !important;
+        font-size: 0.85rem !important;
+    }}
+    [data-baseweb="menu"] li:hover {{
+        background: {accent_glow2} !important;
+    }}
+
+    /* ─── BUTTONS ─── */
+    .stButton > button {{
+        background: {surface} !important;
+        color: {text} !important;
+        border: 1px solid {border} !important;
+        border-radius: 10px !important;
+        font-weight: 500 !important;
+        font-size: 0.82rem !important;
+        letter-spacing: 0.01em !important;
+        transition: all 0.15s ease !important;
+    }}
+    .stButton > button:hover {{
+        background: {surface2} !important;
+        border-color: {accent} !important;
+        box-shadow: 0 0 0 3px {accent_glow} !important;
+        transform: translateY(-1px) !important;
+    }}
+    .stButton > button[kind="primary"] {{
+        background: {accent} !important;
+        color: #ffffff !important;
+        border: none !important;
+        box-shadow: 0 4px 14px {accent_glow} !important;
+    }}
+    .stButton > button[kind="primary"]:hover {{
+        background: {accent2} !important;
+        box-shadow: 0 6px 20px {accent_glow} !important;
+    }}
+
+    /* ─── DOWNLOAD BUTTON ─── */
+    .stDownloadButton > button {{
+        background: {green_bg} !important;
+        color: {green} !important;
+        border: 1px solid {green_bd} !important;
+        border-radius: 10px !important;
+        font-weight: 600 !important;
+    }}
+    .stDownloadButton > button:hover {{
+        box-shadow: 0 0 0 3px {green_bd} !important;
+    }}
+
+    /* ─── POPOVER ─── */
+    [data-testid="stPopover"] > div {{
+        background: {surface2} !important;
+        border: 1px solid {border} !important;
+        border-radius: 14px !important;
+        box-shadow: 0 12px 40px {shadow} !important;
+        padding: 1rem !important;
+    }}
+
+    /* ─── INFO / ALERT ─── */
+    .stAlert {{
+        background: {surface} !important;
+        border: 1px solid {border} !important;
+        border-radius: 12px !important;
+        color: {text} !important;
+    }}
+
+    /* ─── SECTION DIVIDERS ─── */
+    hr {{
+        border: none !important;
+        border-top: 1px solid {border} !important;
+        margin: 1.2rem 0 !important;
+    }}
+
+    /* ─── SPINNER ─── */
+    .stSpinner > div {{
+        border-top-color: {accent} !important;
+    }}
+
+    /* ─── SUBHEADER STYLE ─── */
+    .section-header {{
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 0.9rem;
+        padding-bottom: 0.6rem;
+        border-bottom: 1px solid {border};
+    }}
+    .section-header-text {{
+        font-size: 0.88rem;
+        font-weight: 700;
+        color: {text} !important;
+        letter-spacing: -0.01em;
+    }}
+
+    /* ─── WELCOME CARD ─── */
+    .welcome-hero {{
+        background: {surface};
+        border: 1px solid {border};
+        border-radius: 24px;
+        padding: 2.5rem 2rem;
+        text-align: center;
+        margin-bottom: 1.5rem;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 4px 24px {shadow2};
+    }}
+    .welcome-hero::before {{
+        content: '';
+        position: absolute;
+        top: -60px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 300px;
+        height: 200px;
+        background: radial-gradient(ellipse, {accent_glow} 0%, transparent 70%);
+        pointer-events: none;
+    }}
+    .welcome-icon {{
+        font-size: 2.8rem;
+        margin-bottom: 0.7rem;
+        display: block;
+        position: relative;
+    }}
+
+    /* ─── STEP CARDS ─── */
+    .step-card {{
+        background: {surface};
+        border: 1px solid {border};
+        border-radius: 16px;
+        padding: 1.3rem 1.1rem;
+        height: 100%;
+        position: relative;
+        overflow: hidden;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        box-shadow: 0 2px 10px {shadow2};
+    }}
+    .step-card:hover {{
+        border-color: {border2};
+        box-shadow: 0 8px 28px {shadow};
+    }}
+    .step-num {{
+        width: 28px;
+        height: 28px;
+        background: {accent};
+        color: #fff;
+        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.78rem;
+        font-weight: 800;
+        margin-bottom: 0.8rem;
+        box-shadow: 0 4px 10px {accent_glow};
+    }}
+    .step-icon {{ font-size: 1.5rem; margin-bottom: 0.5rem; display: block; }}
+    .step-title {{
+        font-weight: 700;
+        font-size: 0.88rem;
+        margin-bottom: 0.4rem;
+        color: {text} !important;
+        letter-spacing: -0.01em;
+    }}
+    .step-desc {{
+        font-size: 0.78rem;
+        color: {text2} !important;
+        line-height: 1.55;
+    }}
+
+    /* ─── TOGGLE ─── */
+    [data-testid="stToggle"] label {{
+        color: {text2} !important;
+        font-size: 0.8rem !important;
+    }}
+
+    /* ─── COLUMN GAP FIX ─── */
+    [data-testid="stHorizontalBlock"] {{
+        gap: 0.75rem !important;
+        align-items: center !important;
+    }}
+
+    /* ─── BLOCKQUOTE ─── */
+    blockquote {{
+        border-left: 2px solid {accent} !important;
+        background: {blue_bg} !important;
+        border-radius: 0 8px 8px 0 !important;
+        padding: 0.5rem 0.9rem !important;
+        margin: 0.3rem 0 !important;
+        font-size: 0.84rem !important;
+        font-style: italic !important;
+        color: {text2} !important;
+    }}
+</style>
+"""
+    st.markdown(css, unsafe_allow_html=True)
+
+
+inject_theme()
+
+
+# ========== Helper functions ==========
 def _render_welcome():
-    st.title("🎙️ AI Meeting Notes")
-    st.markdown("""
-Welcome! Press **▶ Start Recording** in the sidebar to begin.
+    dark = st.session_state.get("dark_mode", True)
+    sub_color = "#6b7fa3" if dark else "#5a6b8c"
 
-This app will:
-- Capture audio from Google Meet (via VB-Cable or PulseAudio)
-- Transcribe speech in real-time using Whisper
-- Generate a summary, action items and key points automatically
-- Let you export notes to PDF, Word or Google Docs
+    st.markdown(f"""
+    <div class="welcome-hero">
+        <span class="welcome-icon">🎙️</span>
+        <h1 style="margin:0 0 0.5rem;letter-spacing:-0.03em;">AI Meeting Notes</h1>
+        <p style="color:{sub_color};font-size:0.9rem;line-height:1.6;margin:0;">
+            Real‑time transcription · AI summaries · Multi-language support<br>
+            Hit <strong>▶ Start Recording</strong> in the top bar to begin.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
----
-""")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.info("**Step 1 — Set up audio**\n\nInstall VB-Cable (Windows) or configure PulseAudio loopback (Linux) to route Google Meet audio into the app.")
-    with col2:
-        st.info("**Step 2 — Configure**\n\nChoose your speech engine (Whisper recommended for offline use) and summarizer in the sidebar settings.")
-    with col3:
-        st.info("**Step 3 — Record**\n\nClick Start Recording before or during a meeting. The live transcript and summary update automatically.")
+    col1, col2, col3 = st.columns(3, gap="medium")
+    steps = [
+        ("1", "🔊", "Audio Routing", "Install VB‑Cable or configure PulseAudio loopback to capture system audio."),
+        ("2", "📝", "Live Notes", "Transcription and meeting summary appear automatically while the session runs."),
+        ("3", "▶", "Start Recording", "Hit Start Recording — transcript and summary appear live as you speak."),
+    ]
+    for col, (num, icon, title, desc) in zip([col1, col2, col3], steps):
+        with col:
+            st.markdown(f"""
+            <div class="step-card">
+                <div class="step-num">{num}</div>
+                <span class="step-icon">{icon}</span>
+                <div class="step-title">{title}</div>
+                <div class="step-desc">{desc}</div>
+            </div>
+            """, unsafe_allow_html=True)
 
 
 def _render_transcript_panel(chunks):
-    st.subheader("📝 Live Transcript")
-
+    st.markdown('<div class="section-header"><span class="section-header-text">📝 Live Transcript</span></div>', unsafe_allow_html=True)
     if not chunks:
-        st.caption("Transcript will appear here as you speak…")
+        st.caption("Transcript will appear here once recording starts…")
         return
-
-    search = st.text_input("🔍 Search transcript", placeholder="Type to search…")
-
-    transcript_html = ""
+    search = st.text_input("Search transcript", placeholder="🔍 Search…", label_visibility="collapsed")
+    html_parts = []
     for chunk in reversed(chunks):
         if search and search.lower() not in chunk.text.lower():
             continue
-        highlighted = chunk.text
-        if search:
-            highlighted = highlighted.replace(search, f"<mark>{search}</mark>")
+        text = chunk.text.replace(search, f"<mark>{search}</mark>") if search else chunk.text
         lang = getattr(chunk, "detected_lang", "en")
-        lang_badge = f"""<span class="lang-badge">{lang.upper()}</span>""" if lang and lang != "en" else ""
-        transcript_html += f"""
+        badge = f"<span class='lang-badge'>{lang.upper()}</span>" if lang != "en" else ""
+        html_parts.append(f"""
         <div class="chunk-card">
-            <div class="chunk-timestamp">{chunk.time_label}{lang_badge}</div>
+            <div class="chunk-timestamp">{chunk.time_label}{badge}</div>
             <span class="chunk-speaker">{chunk.speaker}</span>
-            <span class="chunk-text"> {highlighted}</span>
-        </div>"""
-
-    st.markdown(
-        f'<div style="max-height:520px;overflow-y:auto;">{transcript_html}</div>',
-        unsafe_allow_html=True,
-    )
-
-    full_text = "\n".join(f"[{c.time_label}] {c.speaker}: {c.text}" for c in chunks)
+            <span class="chunk-text"> — {text}</span>
+        </div>""")
+    scroll_html = f'<div style="max-height:500px;overflow-y:auto;padding-right:3px;">{"".join(html_parts)}</div>'
+    st.markdown(scroll_html, unsafe_allow_html=True)
+    full = "\n".join(f"[{c.time_label}] {c.speaker}: {c.text}" for c in chunks)
     st.download_button(
-        "📋 Download transcript",
-        data=full_text,
+        "📋 Download transcript (.txt)",
+        data=full,
         file_name=f"transcript_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-        mime="text/plain",
+        use_container_width=True
     )
 
 
 def _render_summary_panel(summary, chunks, session):
-    st.subheader("📋 Meeting Summary")
-
+    st.markdown('<div class="section-header"><span class="section-header-text">📋 Meeting Summary</span></div>', unsafe_allow_html=True)
     if summary:
         st.markdown(f'<div class="summary-box">{summary.summary}</div>', unsafe_allow_html=True)
-        st.write("")
-
         if summary.action_items:
-            st.markdown("**✅ Action Items**")
+            st.markdown("<br>**✅ Action Items**", unsafe_allow_html=True)
             for item in summary.action_items:
                 st.markdown(f'<div class="action-item">→ {item}</div>', unsafe_allow_html=True)
-            st.write("")
-
         if summary.key_points:
-            st.markdown("**💡 Key Points**")
+            st.markdown("<br>**💡 Key Points**", unsafe_allow_html=True)
             for point in summary.key_points:
                 st.markdown(f'<div class="key-point">• {point}</div>', unsafe_allow_html=True)
-            st.write("")
-
         if summary.highlights:
-            st.markdown("**✨ Highlights**")
+            st.markdown("<br>**✨ Highlights**", unsafe_allow_html=True)
             for h in summary.highlights:
                 st.markdown(f"> *{h}*")
     else:
-        if chunks:
-            st.info("Summary generating… (requires ~20+ words of transcript)")
-        else:
-            st.caption("Summary will appear here once there is enough transcript.")
+        st.info("Generating summary… (needs ~20+ words)" if chunks else "Summary will appear here once recording starts.")
 
     if session and chunks:
-        topics = session.get_topics()
+        topics = getattr(session, "get_topics", lambda: [])()
         if topics:
-            st.markdown("**🏷️ Topics Detected**")
+            st.markdown("<br>**🏷️ Topics Detected**", unsafe_allow_html=True)
             st.write(" · ".join(f"`{t}`" for t in topics[:8]))
 
-    st.write("")
+    st.markdown("---")
     st.markdown("**📤 Export Notes**")
-
-    session_id = (
-        session.session_id if session
-        else st.session_state.get("loaded_session_id", "unknown")
-    )
-
-    col_a, col_b, col_c = st.columns(3)
-
-    with col_a:
+    sid = session.session_id if session else st.session_state.get("loaded_session_id", "unknown")
+    c1, c2, c3 = st.columns(3)
+    with c1:
         if st.button("📄 PDF", use_container_width=True):
-            with st.spinner("Generating PDF…"):
+            try:
                 from exports.export_pdf import export_to_pdf
-                path = export_to_pdf(
-                    session_id=session_id,
-                    transcript=chunks,
-                    summary=summary,
-                    meeting_title=st.session_state.meeting_title,
-                )
-            with open(path, "rb") as f:
-                st.download_button(
-                    "⬇ Download PDF", data=f,
-                    file_name=path.name, mime="application/pdf",
-                )
-
-    with col_b:
+                with st.spinner("Generating PDF…"):
+                    path = export_to_pdf(sid, chunks, summary, st.session_state.meeting_title)
+                    with open(path, "rb") as f:
+                        st.download_button("⬇ Download PDF", data=f, file_name=path.name, mime="application/pdf")
+            except ImportError:
+                st.error("PDF export module not available")
+    with c2:
         if st.button("📝 Word", use_container_width=True):
-            with st.spinner("Generating DOCX…"):
+            try:
                 from exports.export_docx import export_to_docx
-                path = export_to_docx(
-                    session_id=session_id,
-                    transcript=chunks,
-                    summary=summary,
-                    meeting_title=st.session_state.meeting_title,
-                )
-            with open(path, "rb") as f:
-                st.download_button(
-                    "⬇ Download DOCX", data=f,
-                    file_name=path.name,
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                )
-
-    with col_c:
+                with st.spinner("Generating DOCX…"):
+                    path = export_to_docx(sid, chunks, summary, st.session_state.meeting_title)
+                    with open(path, "rb") as f:
+                        st.download_button("⬇ Download DOCX", data=f, file_name=path.name)
+            except ImportError:
+                st.error("DOCX export module not available")
+    with c3:
         if st.button("📊 Google Docs", use_container_width=True):
-            with st.spinner("Exporting to Google Docs…"):
-                try:
-                    from exports.export_google_docs import export_to_google_docs
-                    url = export_to_google_docs(
-                        session_id=session_id,
-                        transcript=chunks,
-                        summary=summary,
-                        meeting_title=st.session_state.meeting_title,
-                    )
+            try:
+                from exports.export_google_docs import export_to_google_docs
+                with st.spinner("Exporting…"):
+                    url = export_to_google_docs(sid, chunks, summary, st.session_state.meeting_title)
                     if url:
                         st.success(f"[Open in Google Docs]({url})")
                     else:
-                        st.error("Failed — check GOOGLE_CREDENTIALS_PATH in .env")
-                except Exception as e:
-                    st.error(f"Error: {e}")
+                        st.error("Check GOOGLE_CREDENTIALS_PATH in .env")
+            except ImportError:
+                st.error("Google Docs export module not available")
 
 
 def _render_live_session():
-    session: MeetingSession = st.session_state.meeting_session
+    session = st.session_state.meeting_session
     if not session:
         return
-
-    chunks  = session.transcript.get_all()
+    chunks = session.transcript.get_all()
     summary = session.get_summary()
-    dur_sec = int(session.get_duration())
+    dur = int(session.get_duration())
 
     st.title(f"🎙️ {st.session_state.meeting_title}")
 
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.markdown(f'<div class="stat-card"><div class="stat-value">{dur_sec//60:02d}:{dur_sec%60:02d}</div><div class="stat-label">Duration</div></div>', unsafe_allow_html=True)
-    with col2:
-        st.markdown(f'<div class="stat-card"><div class="stat-value">{len(chunks)}</div><div class="stat-label">Transcript chunks</div></div>', unsafe_allow_html=True)
-    with col3:
-        words = sum(len(c.text.split()) for c in chunks)
-        st.markdown(f'<div class="stat-card"><div class="stat-value">{words}</div><div class="stat-label">Words spoken</div></div>', unsafe_allow_html=True)
-    with col4:
-        speakers = len(set(c.speaker for c in chunks))
-        st.markdown(f'<div class="stat-card"><div class="stat-value">{speakers}</div><div class="stat-label">Speakers</div></div>', unsafe_allow_html=True)
+    c1, c2, c3, c4 = st.columns(4)
+    stats = [
+        (f"{dur//60:02d}:{dur%60:02d}", "Duration"),
+        (str(len(chunks)), "Chunks"),
+        (str(sum(len(c.text.split()) for c in chunks)), "Words"),
+        (str(len(set(c.speaker for c in chunks))), "Speakers"),
+    ]
+    for col, (val, label) in zip([c1, c2, c3, c4], stats):
+        with col:
+            st.markdown(f"""
+            <div class="stat-card">
+                <div class="stat-value">{val}</div>
+                <div class="stat-label">{label}</div>
+                <div class="stat-accent"></div>
+            </div>""", unsafe_allow_html=True)
 
-    st.write("")
-    left, right = st.columns([1, 1], gap="large")
+    st.markdown("<br>", unsafe_allow_html=True)
+    left, right = st.columns(2, gap="large")
     with left:
         _render_summary_panel(summary, chunks, session)
     with right:
@@ -295,162 +796,141 @@ def _render_past_session(session_id: str):
     if not data:
         st.error(f"Session {session_id} not found.")
         return
-
     from core.transcriber import TranscriptChunk
     from core.summarizer import MeetingSummary
-
     chunks = [
-        TranscriptChunk(
-            text=c["text"],
-            timestamp=c["timestamp"],
-            speaker=c.get("speaker", "Unknown"),
-            confidence=c.get("confidence", 1.0),
-        )
+        TranscriptChunk(c["text"], c["timestamp"], c.get("speaker", "Unknown"), c.get("confidence", 1.0))
         for c in data.get("transcript", [])
     ]
-
     summary = None
     if data.get("summary"):
         s = data["summary"]
         summary = MeetingSummary(
-            summary=s.get("summary", ""),
-            action_items=s.get("action_items", []),
-            key_points=s.get("key_points", []),
-            highlights=s.get("highlights", []),
-            word_count=s.get("word_count", 0),
-            model_used=s.get("model_used", ""),
+            s.get("summary", ""),
+            s.get("action_items", []),
+            s.get("key_points", []),
+            s.get("highlights", []),
+            s.get("word_count", 0),
+            s.get("model_used", "")
         )
-
-    st.title(f"📂 Past Session — {session_id}")
-    dt  = data.get("started_at", "")[:16].replace("T", " ")
+    dt = data.get("started_at", "")[:16].replace("T", " ")
     dur = int(data.get("duration_sec", 0))
-    st.caption(f"Recorded: {dt}  |  Duration: {dur//60}m {dur%60}s  |  {len(chunks)} chunks")
-
+    st.title(f"📂 {session_id}")
+    st.caption(f"Recorded: {dt}  ·  Duration: {dur//60}m {dur%60}s  ·  {len(chunks)} chunks")
     if st.button("← Back to live view"):
         del st.session_state["loaded_session_id"]
         st.rerun()
-
-    st.write("")
-    left, right = st.columns([1, 1], gap="large")
+    st.markdown("<br>", unsafe_allow_html=True)
+    left, right = st.columns(2, gap="large")
     with left:
-        _render_summary_panel(summary, chunks, session=None)
+        _render_summary_panel(summary, chunks, None)
     with right:
         _render_transcript_panel(chunks)
 
 
-# ── Auto-refresh while recording ───────────────────────────────────────────────
-
+# ========== Auto-refresh while recording ==========
 if st.session_state.is_recording:
     st_autorefresh(interval=3000, key="live_refresh")
 
 
-# ── Sidebar ────────────────────────────────────────────────────────────────────
+# ========== Top bar ==========
+def top_bar():
+    speech_engine = "whisper"
+    summarizer = "transformers"
 
-with st.sidebar:
-    st.markdown("## 🎙️ AI Meeting Notes")
-    st.markdown("---")
+    with st.container():
+        cols = st.columns([0.6, 4.0, 2.0, 1.8, 2.4, 0.65])
 
-    st.session_state.meeting_title = st.text_input(
-        "Meeting title",
-        value=st.session_state.meeting_title,
-        disabled=st.session_state.is_recording,
-    )
+        with cols[0]:
+            if st.button("←", help="Go back"):
+                st.markdown('<script>window.history.back();</script>', unsafe_allow_html=True)
 
-    with st.expander("⚙️ Engine Settings", expanded=False):
-        speech_engine = st.selectbox(
-            "Speech engine",
-            ["whisper", "assemblyai", "google"],
-            index=0,
-            disabled=st.session_state.is_recording,
-        )
-        summarizer = st.selectbox(
-            "Summarizer",
-            ["transformers", "openai", "claude"],
-            index=0,
-            disabled=st.session_state.is_recording,
-        )
-        if speech_engine == "whisper":
-            st.selectbox(
-                "Whisper model",
-                ["tiny", "base", "small", "medium", "large"],
-                index=1,
-                help="Larger = more accurate but slower",
+        with cols[1]:
+            st.session_state.meeting_title = st.text_input(
+                "title",
+                value=st.session_state.meeting_title,
                 disabled=st.session_state.is_recording,
+                label_visibility="collapsed",
+                placeholder="Meeting title…"
             )
 
-    st.markdown("---")
-
-    if not st.session_state.is_recording:
-        if st.button("▶ Start Recording", use_container_width=True, type="primary"):
-            session = MeetingSession(
-                speech_engine=speech_engine,
-                summarizer_engine=summarizer,
-            )
-            session.start()
-            st.session_state.meeting_session = session
-            st.session_state.is_recording    = True
-            st.session_state.session_id      = session.session_id
-            st.rerun()
-    else:
-        st.markdown(
-            '<div class="recording-badge"><span class="recording-dot"></span>Recording…</div>',
-            unsafe_allow_html=True,
-        )
-        st.write("")
-        if st.button("⏹ Stop Recording", use_container_width=True):
-            session = st.session_state.get("meeting_session")
-
-            if session:
-                try:
-                    with st.spinner("Finalizing session…"):
-                        session.stop()
-
-                except Exception as e:
-                    st.error(f"Error while stopping: {e}")
-
-            # Always reset state (even if error happens)
-            st.session_state.is_recording = False
-            st.session_state.meeting_session = session
-
-            st.rerun()
-
-    # Speaker rename panel
-    if st.session_state.meeting_session:
-        session = st.session_state.meeting_session
-        speakers = session._transcriber.get_speakers() if session._transcriber else []
-        if speakers:
-            st.markdown("---")
-            st.markdown("### Rename Speakers")
-            st.caption("Type a real name to replace Speaker 1, Speaker 2, etc.")
-            for spk in speakers:
-                new_name = st.text_input(spk, value=spk, key=f"rename_{spk}")
-                if new_name and new_name != spk:
-                    session._transcriber.rename_speaker(spk, new_name)
-                    for chunk in session.transcript.get_all():
-                        if chunk.speaker == spk:
-                            chunk.speaker = new_name
+        with cols[2]:
+            if not st.session_state.is_recording:
+                if st.button("▶ Start Recording", use_container_width=True, type="primary"):
+                    sess = MeetingSession(speech_engine, summarizer)
+                    sess.start()
+                    st.session_state.meeting_session = sess
+                    st.session_state.is_recording = True
+                    st.session_state.session_id = sess.session_id
                     st.rerun()
+            else:
+                col_badge, col_stop = st.columns([1.4, 1])
+                with col_badge:
+                    st.markdown(
+                        '<div class="recording-badge">'
+                        '<span class="recording-dot"></span>LIVE'
+                        '</div>',
+                        unsafe_allow_html=True
+                    )
+                with col_stop:
+                    if st.button("⏹ Stop", use_container_width=True):
+                        with st.spinner("Finalizing…"):
+                            st.session_state.meeting_session.stop()
+                        st.session_state.is_recording = False
+                        st.rerun()
 
-    st.markdown("---")
-    st.markdown("### 📂 Past Sessions")
-    sessions = MeetingSession.list_sessions()
-    if not sessions:
-        st.caption("No sessions yet.")
-    else:
-        for s in sessions[:10]:
-            dt   = s["started_at"][:16].replace("T", " ") if s["started_at"] else "?"
-            mins = int(s["duration"] / 60)
-            if st.button(f"{dt} ({mins}m)", key=f"sess_{s['session_id']}", use_container_width=True):
-                st.session_state.loaded_session_id = s["session_id"]
+        with cols[3]:
+            sess = st.session_state.meeting_session
+            if sess and not st.session_state.is_recording:
+                chunks = sess.transcript.get_all() if hasattr(sess, 'transcript') else []
+                speakers = sorted(set(c.speaker for c in chunks)) if chunks else []
+                if speakers:
+                    with st.popover("🏷️ Speakers"):
+                        for spk in speakers:
+                            new = st.text_input(spk, value=spk, key=f"rename_{spk}")
+                            if new and new != spk:
+                                for ch in sess.transcript.get_all():
+                                    if ch.speaker == spk:
+                                        ch.speaker = new
+                                st.rerun()
+                else:
+                    st.caption("No speakers yet")
+            else:
+                st.caption("—")
+
+        with cols[4]:
+            sessions = MeetingSession.list_sessions()
+            if sessions:
+                opts = {
+                    f"{s['started_at'][:16]} ({s['duration']//60}m)": s['session_id']
+                    for s in sessions[:10]
+                }
+                sel = st.selectbox(
+                    "Past sessions",
+                    list(opts.keys()),
+                    index=None,
+                    placeholder="📂 Past sessions",
+                    label_visibility="collapsed"
+                )
+                if sel:
+                    st.session_state.loaded_session_id = opts[sel]
+                    st.rerun()
+            else:
+                st.caption("No past sessions")
+
+        with cols[5]:
+            dark = st.toggle("🌙", value=st.session_state.dark_mode, help="Dark mode")
+            if dark != st.session_state.dark_mode:
+                st.session_state.dark_mode = dark
                 st.rerun()
 
 
-# ── Main area routing — all functions are defined above, safe to call ──────────
+# ========== Main ==========
+top_bar()
 
-loaded_session_id = st.session_state.get("loaded_session_id")
-
-if loaded_session_id and not st.session_state.is_recording:
-    _render_past_session(loaded_session_id)
+loaded = st.session_state.get("loaded_session_id")
+if loaded and not st.session_state.is_recording:
+    _render_past_session(loaded)
 elif st.session_state.is_recording or st.session_state.meeting_session:
     _render_live_session()
 else:
