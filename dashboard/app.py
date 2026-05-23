@@ -13,6 +13,9 @@ from datetime import datetime
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import streamlit as st
+from audio_recorder_streamlit import audio_recorder
+import tempfile
+
 from streamlit_autorefresh import st_autorefresh
 
 from core.config import config
@@ -855,29 +858,80 @@ def top_bar():
             )
 
         with cols[2]:
-            if not st.session_state.is_recording:
-                if st.button("▶ Start Recording", use_container_width=True, type="primary"):
-                    sess = MeetingSession(speech_engine, summarizer)
-                    sess.start()
-                    st.session_state.meeting_session = sess
-                    st.session_state.is_recording = True
-                    st.session_state.session_id = sess.session_id
+
+            st.markdown(
+                """
+                <div style="
+                    text-align:center;
+                    padding:8px;
+                    border-radius:12px;
+                    background:#111827;
+                    border:1px solid #1e293b;
+                    margin-bottom:10px;
+                ">
+                🎤 Browser Recording
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            audio_bytes = audio_recorder(
+                text="",
+                recording_color="#ef4444",
+                neutral_color="#3b82f6",
+                icon_name="microphone",
+                icon_size="2x",
+            )
+
+            if audio_bytes:
+
+                st.success("Recording completed!")
+
+                with tempfile.NamedTemporaryFile(
+                    delete=False,
+                    suffix=".wav"
+                ) as tmp_file:
+
+                    tmp_file.write(audio_bytes)
+
+                    audio_path = tmp_file.name
+
+                try:
+
+                    if st.session_state.meeting_session is None:
+
+                        sess = MeetingSession(
+                            speech_engine,
+                            summarizer
+                        )
+
+                        st.session_state.meeting_session = sess
+
+                    sess = st.session_state.meeting_session
+
+                    with st.spinner("Transcribing audio..."):
+
+                        transcript_result = (
+                            sess.transcriber.transcribe_file(audio_path)
+                        )
+
+                    if transcript_result:
+
+                        for chunk in transcript_result:
+
+                            sess.transcript.add(chunk)
+
+                    with st.spinner("Generating summary..."):
+
+                        sess.generate_summary()
+
+                    st.success("Summary generated!")
+
                     st.rerun()
-            else:
-                col_badge, col_stop = st.columns([1.4, 1])
-                with col_badge:
-                    st.markdown(
-                        '<div class="recording-badge">'
-                        '<span class="recording-dot"></span>LIVE'
-                        '</div>',
-                        unsafe_allow_html=True
-                    )
-                with col_stop:
-                    if st.button("⏹ Stop", use_container_width=True):
-                        with st.spinner("Finalizing…"):
-                            st.session_state.meeting_session.stop()
-                        st.session_state.is_recording = False
-                        st.rerun()
+
+                except Exception as e:
+
+                    st.error(f"Error: {e}")
 
         with cols[3]:
             sess = st.session_state.meeting_session
