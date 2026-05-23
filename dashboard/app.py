@@ -911,15 +911,26 @@ def top_bar():
 
                     with st.spinner("Transcribing audio..."):
 
-                        transcript_result = (
-                            sess.transcriber.transcribe_file(audio_path)
+                        import whisper
+
+                        model = whisper.load_model("base")
+
+                        result = model.transcribe(audio_path)
+
+                        transcript_text = result["text"]
+
+                    if transcript_text:
+
+                        from core.transcriber import TranscriptChunk
+
+                        chunk = TranscriptChunk(
+                            text=transcript_text,
+                            timestamp=0,
+                            speaker="Speaker 1",
+                            confidence=1.0
                         )
 
-                    if transcript_result:
-
-                        for chunk in transcript_result:
-
-                            sess.transcript.add(chunk)
+                        sess.transcript.add(chunk)
 
                     with st.spinner("Generating summary..."):
 
