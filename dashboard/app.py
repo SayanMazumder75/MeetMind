@@ -632,6 +632,19 @@ def inject_theme():
 
 inject_theme()
 
+# ========== Cached Whisper Model ==========
+@st.cache_resource
+def load_whisper_model():
+
+    from faster_whisper import WhisperModel
+
+    model = WhisperModel(
+        "tiny",
+        device="cpu",
+        compute_type="int8"
+    )
+
+    return model
 
 # ========== Helper functions ==========
 def _render_welcome():
@@ -883,7 +896,7 @@ def top_bar():
                 icon_size="2x",
             )
 
-            if audio_bytes:
+            if audio_bytes is not None and len(audio_bytes) > 1000:
 
                 st.success("Recording completed!")
 
@@ -911,15 +924,12 @@ def top_bar():
 
                     with st.spinner("Transcribing audio..."):
 
-                        from faster_whisper import WhisperModel
+                        model = load_whisper_model()
 
-                        model = WhisperModel(
-                            "tiny",
-                            device="cpu",
-                            compute_type="int8"
+                        segments, info = model.transcribe(
+                            audio_path,
+                            beam_size=1
                         )
-
-                        segments, info = model.transcribe(audio_path)
 
                         transcript_text = " ".join(
                             [segment.text for segment in segments]
@@ -943,8 +953,6 @@ def top_bar():
                         sess.generate_summary()
 
                     st.success("Summary generated!")
-
-                    st.rerun()
 
                 except Exception as e:
 
