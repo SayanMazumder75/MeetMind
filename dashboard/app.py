@@ -911,13 +911,19 @@ def top_bar():
 
                     with st.spinner("Transcribing audio..."):
 
-                        import whisper
+                        from faster_whisper import WhisperModel
 
-                        model = whisper.load_model("base")
+                        model = WhisperModel(
+                            "tiny",
+                            device="cpu",
+                            compute_type="int8"
+                        )
 
-                        result = model.transcribe(audio_path)
+                        segments, info = model.transcribe(audio_path)
 
-                        transcript_text = result["text"]
+                        transcript_text = " ".join(
+                            [segment.text for segment in segments]
+                        )
 
                     if transcript_text:
 
